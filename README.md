@@ -51,18 +51,27 @@ the client will use the returned string verbatim.
 **Intended binding.** Host applications bind the contract to whichever service
 supplies Microsoft OAuth access tokens. In Keystone (and any other consumer of
 [`artisanpack-ui/microsoft-oauth`](https://github.com/ArtisanPack-UI/microsoft-oauth)),
-this is the manager exposed by that package. A typical binding in an
-application service provider looks like:
+this will be the manager exposed by that package once its public surface is
+finalized. Until then, host applications bind the contract to any
+implementation they control — for example an inline adapter in an application
+service provider:
 
 ```php
 use ArtisanPackUI\BingPlaces\Contracts\TokenProvider;
-use ArtisanPackUI\MicrosoftOauth\Support\MicrosoftTokenProvider;
 
-$this->app->bind( TokenProvider::class, MicrosoftTokenProvider::class );
+$this->app->bind( TokenProvider::class, function (): TokenProvider {
+    return new class implements TokenProvider {
+        public function accessToken(): string
+        {
+            // Resolve a valid Microsoft OAuth access token here — refresh
+            // beforehand if needed. The client uses the returned string
+            // verbatim as the Bearer credential.
+            return '...';
+        }
+    };
+} );
 ```
 
-The exact class name from `artisanpack-ui/microsoft-oauth` will be documented
-once that package's manager surface is finalized; the shape above is stable.
 Tests may bind a stub returning a fixed string.
 
 ## Contributing

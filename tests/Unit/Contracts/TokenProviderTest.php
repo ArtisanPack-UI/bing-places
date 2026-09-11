@@ -28,6 +28,13 @@ test( 'TokenProvider declares a parameterless accessToken() method returning str
 
 test( 'a class implementing TokenProvider satisfies the contract', function (): void {
     $provider = new class implements TokenProvider {
+        /**
+         * Return a fixed test access token for contract-satisfaction checks.
+         *
+         * @since 1.0.0
+         *
+         * @return string A non-empty OAuth access token.
+         */
         public function accessToken(): string
         {
             return 'test-access-token';
