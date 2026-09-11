@@ -74,6 +74,18 @@ function makeBusinessesClient(): BusinessesClient
     );
 }
 
+function bpHasBearer( Request $request, string $expected = 'contract-token' ): bool
+{
+    return 'Bearer ' . $expected === ( $request->header( 'Authorization' )[0] ?? '' );
+}
+
+function bpIsJson( Request $request ): bool
+{
+    $contentType = $request->header( 'Content-Type' )[0] ?? '';
+
+    return str_contains( $contentType, 'application/json' );
+}
+
 function makeReviewsClient(): ReviewsClient
 {
     return new ReviewsClient(
@@ -152,34 +164,45 @@ it( 'exercises the full business lifecycle end-to-end against Http::fake fixture
     // 5. Delete — 204 No Content resolves to void with no throw.
     $client->deleteBusiness( 'biz-abc-123' );
 
-    // Contract assertions on the recorded traffic.
+    // Contract assertions on the recorded traffic. Each matcher pins the
+    // verb, exact URL (query string included), the Bearer credential, and
+    // — for write verbs — the JSON content type and the complete outgoing
+    // payload, so no unrelated request can satisfy any callback.
     Http::assertSentCount( 5 );
 
     Http::assertSent( function ( Request $request ): bool {
-        return 'Bearer contract-token' === ( $request->header( 'Authorization' )[0] ?? '' );
-    } );
-
-    Http::assertSent( function ( Request $request ): bool {
         return 'GET' === $request->method()
-            && str_starts_with( $request->url(), BP_BASE_URL . '/businesses' )
-            && str_contains( $request->url(), 'pageSize=25' );
+            && BP_BASE_URL . '/businesses?pageSize=25' === $request->url()
+            && bpHasBearer( $request )
+            && '' === $request->body();
     } );
 
-    Http::assertSent( function ( Request $request ): bool {
+    $createPayload = [
+        'storeId'      => 'store-9000',
+        'businessName' => 'New ArtisanPack Cafe',
+        'address'      => [ 'addressLine1' => '9 Oak Boulevard', 'city' => 'Capital City' ],
+    ];
+    Http::assertSent( function ( Request $request ) use ( $createPayload ): bool {
         return 'POST' === $request->method()
             && BP_BASE_URL . '/businesses' === $request->url()
-            && 'store-9000' === ( $request->data()['storeId'] ?? null );
+            && bpHasBearer( $request )
+            && bpIsJson( $request )
+            && $createPayload === $request->data();
     } );
 
     Http::assertSent( function ( Request $request ): bool {
         return 'PATCH' === $request->method()
             && BP_BASE_URL . '/businesses/biz-abc-123' === $request->url()
-            && '+1-555-9999' === ( $request->data()['phone'] ?? null );
+            && bpHasBearer( $request )
+            && bpIsJson( $request )
+            && [ 'phone' => '+1-555-9999' ] === $request->data();
     } );
 
     Http::assertSent( function ( Request $request ): bool {
         return 'DELETE' === $request->method()
-            && BP_BASE_URL . '/businesses/biz-abc-123' === $request->url();
+            && BP_BASE_URL . '/businesses/biz-abc-123' === $request->url()
+            && bpHasBearer( $request )
+            && '' === $request->body();
     } );
 } );
 
@@ -205,9 +228,9 @@ it( 'hydrates a review list end-to-end from a realistic fixture', function (): v
 
     Http::assertSent( function ( Request $request ): bool {
         return 'GET' === $request->method()
-            && str_starts_with( $request->url(), BP_BASE_URL . '/businesses/biz-abc-123/reviews' )
-            && str_contains( $request->url(), 'pageSize=25' )
-            && 'Bearer contract-token' === ( $request->header( 'Authorization' )[0] ?? '' );
+            && BP_BASE_URL . '/businesses/biz-abc-123/reviews?pageSize=25' === $request->url()
+            && bpHasBearer( $request )
+            && '' === $request->body();
     } );
 } );
 
@@ -230,7 +253,10 @@ it( 'walks a paginated business list using nextPageToken', function (): void {
     expect( $page2->totalSize )->toBe( 3 );
 
     Http::assertSent( function ( Request $request ): bool {
-        return str_contains( $request->url(), 'pageToken=page-token-2' );
+        return 'GET' === $request->method()
+            && BP_BASE_URL . '/businesses?pageSize=2&pageToken=page-token-2' === $request->url()
+            && bpHasBearer( $request )
+            && '' === $request->body();
     } );
 } );
 
