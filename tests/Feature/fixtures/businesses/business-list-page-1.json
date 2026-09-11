@@ -1,0 +1,38 @@
+{
+    "businesses": [
+        {
+            "id": "biz-abc-123",
+            "storeId": "store-4200",
+            "businessName": "ArtisanPack Bakery",
+            "website": "https://artisanpack-bakery.test",
+            "phone": "+1-555-0142",
+            "address": {
+                "addressLine1": "1 Main Street",
+                "city": "Springfield",
+                "stateOrProvince": "IL",
+                "zipOrPostalCode": "62704",
+                "countryOrRegion": "US"
+            },
+            "verification": {"status": "verified"},
+            "createdAt": "2026-01-10T09:00:00Z"
+        },
+        {
+            "id": "biz-def-456",
+            "storeId": "store-4201",
+            "businessName": "ArtisanPack Coffee",
+            "website": "https://artisanpack-coffee.test",
+            "phone": "+1-555-0143",
+            "address": {
+                "addressLine1": "42 Elm Avenue",
+                "city": "Shelbyville",
+                "stateOrProvince": "IL",
+                "zipOrPostalCode": "62565",
+                "countryOrRegion": "US"
+            },
+            "verification": {"status": "pending"},
+            "createdAt": "2026-01-11T10:00:00Z"
+        }
+    ],
+    "nextPageToken": "page-token-2",
+    "totalSize": 3
+}

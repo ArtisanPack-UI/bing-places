@@ -1,0 +1,31 @@
+{
+    "reviews": [
+        {
+            "id": "review-1",
+            "rating": 5,
+            "comment": "Best sourdough in town.",
+            "source": "Yelp",
+            "reviewer": {"displayName": "Alex P.", "avatarUrl": "https://cdn.example.test/avatars/alex.jpg"},
+            "createdAt": "2026-02-14T10:15:00Z",
+            "updatedAt": "2026-02-14T10:15:00Z"
+        },
+        {
+            "id": "review-2",
+            "rating": 4,
+            "comment": "Great coffee, small seating area.",
+            "source": "Tripadvisor",
+            "reviewer": {"displayName": "Jamie L."},
+            "createdAt": "2026-02-20T18:00:00Z"
+        },
+        {
+            "id": "review-3",
+            "rating": 3,
+            "source": "Yelp",
+            "reviewer": {"displayName": "Sam T."},
+            "createdAt": "2026-03-01T09:00:00Z"
+        }
+    ],
+    "nextPageToken": "reviews-page-2",
+    "totalSize": 12,
+    "averageRating": 4.2
+}
