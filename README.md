@@ -29,6 +29,42 @@ bingPlaces();  // helper
 app( 'bing-places' ); // container binding
 ```
 
+### TokenProvider contract
+
+This package performs no OAuth. The API client (once introduced) accepts an
+implementation of `ArtisanPackUI\BingPlaces\Contracts\TokenProvider`, which
+returns a valid Microsoft OAuth access token to use as the Bearer credential on
+Bing Places for Business API requests:
+
+```php
+namespace ArtisanPackUI\BingPlaces\Contracts;
+
+interface TokenProvider
+{
+    public function accessToken(): string;
+}
+```
+
+Implementations are responsible for refreshing expired tokens before returning;
+the client will use the returned string verbatim.
+
+**Intended binding.** Host applications bind the contract to whichever service
+supplies Microsoft OAuth access tokens. In Keystone (and any other consumer of
+[`artisanpack-ui/microsoft-oauth`](https://github.com/ArtisanPack-UI/microsoft-oauth)),
+this is the manager exposed by that package. A typical binding in an
+application service provider looks like:
+
+```php
+use ArtisanPackUI\BingPlaces\Contracts\TokenProvider;
+use ArtisanPackUI\MicrosoftOauth\Support\MicrosoftTokenProvider;
+
+$this->app->bind( TokenProvider::class, MicrosoftTokenProvider::class );
+```
+
+The exact class name from `artisanpack-ui/microsoft-oauth` will be documented
+once that package's manager surface is finalized; the shape above is stable.
+Tests may bind a stub returning a fixed string.
+
 ## Contributing
 
 As an open source project, this package is open to contributions from anyone. Please [read through the contributing guidelines](CONTRIBUTING.md) to learn more about how you can contribute to this project.
