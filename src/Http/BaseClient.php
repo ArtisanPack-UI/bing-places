@@ -31,8 +31,9 @@ use Illuminate\Http\Client\Response;
  * - Attach the token as a Bearer credential and set JSON accept/content
  *   headers on the outgoing request.
  * - Retry `HTTP 429` and `HTTP 5xx` responses (honoring `Retry-After` when
- *   present) and, only for idempotent verbs, transport failures — up to
- *   the configured attempt count.
+ *   present) and transport failures — but, in both cases, only for
+ *   idempotent verbs so a write the server may already have processed is
+ *   never replayed. Up to the configured attempt count.
  * - Map every non-2xx response and every {@see ConnectionException} to an
  *   {@see ApiException} carrying the status code and raw body.
  *
@@ -135,7 +136,11 @@ abstract class BaseClient
                 throw ApiException::transportFailure( $exception );
             }
 
-            if ( $this->shouldRetryStatus( $response->status() ) && $attempt < $maxAttempts ) {
+            if (
+                $this->shouldRetryStatus( $response->status() )
+                && $attempt < $maxAttempts
+                && $this->isIdempotentMethod( $method )
+            ) {
                 $this->sleep( $this->retryAfterMs( $response ) );
                 continue;
             }
