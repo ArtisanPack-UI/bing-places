@@ -1,0 +1,6 @@
+{
+    "error": {
+        "code": "NOT_FOUND",
+        "message": "The requested business could not be found."
+    }
+}

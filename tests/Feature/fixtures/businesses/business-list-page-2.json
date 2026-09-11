@@ -1,0 +1,13 @@
+{
+    "businesses": [
+        {
+            "id": "biz-ghi-789",
+            "storeId": "store-4202",
+            "businessName": "ArtisanPack Deli",
+            "phone": "+1-555-0144",
+            "verification": {"status": "verified"}
+        }
+    ],
+    "nextPageToken": null,
+    "totalSize": 3
+}

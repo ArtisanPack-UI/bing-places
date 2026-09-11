@@ -1,0 +1,41 @@
+{
+    "id": "biz-abc-123",
+    "storeId": "store-4200",
+    "businessName": "ArtisanPack Bakery",
+    "website": "https://artisanpack-bakery.test",
+    "phone": "+1-555-0142",
+    "description": "Wood-fired sourdough and pastries.",
+    "address": {
+        "addressLine1": "1 Main Street",
+        "addressLine2": "Suite 200",
+        "city": "Springfield",
+        "stateOrProvince": "IL",
+        "zipOrPostalCode": "62704",
+        "countryOrRegion": "US"
+    },
+    "location": {
+        "latitude": 39.7817,
+        "longitude": -89.6501
+    },
+    "categories": {
+        "primary": "Bakery",
+        "additional": ["Coffee Shop", "Breakfast Restaurant"]
+    },
+    "businessHours": {
+        "monday": [{"open": "07:00", "close": "18:00"}],
+        "tuesday": [{"open": "07:00", "close": "18:00"}]
+    },
+    "specialHours": [
+        {"date": "2026-12-25", "closed": true}
+    ],
+    "verification": {
+        "status": "verified",
+        "method": "postcard",
+        "verifiedAt": "2026-01-15T12:00:00Z"
+    },
+    "photos": [
+        {"url": "https://cdn.example.test/photo-1.jpg", "type": "storefront"}
+    ],
+    "createdAt": "2026-01-10T09:00:00Z",
+    "updatedAt": "2026-02-01T11:30:00Z"
+}
