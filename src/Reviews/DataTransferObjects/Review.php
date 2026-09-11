@@ -86,11 +86,7 @@ final class Review
      */
     public static function fromArray( array $data ): self
     {
-        $rating = null;
-
-        if ( isset( $data['rating'] ) && is_numeric( $data['rating'] ) ) {
-            $rating = (int) $data['rating'];
-        }
+        $rating = self::ratingOrNull( $data );
 
         return new self(
             id       : isset( $data['id'] ) && is_scalar( $data['id'] ) ? (string) $data['id'] : '',
@@ -102,6 +98,41 @@ final class Review
             updatedAt: self::stringOrNull( $data, 'updatedAt' ),
             raw      : $data,
         );
+    }
+
+    /**
+     * Coerce a `rating` payload into an integer on the documented 1-5
+     * scale, or null when the value is missing, non-numeric, fractional,
+     * or out of range.
+     *
+     * Fractional inputs (e.g. `4.9`, `"4.9"`) are rejected rather than
+     * silently truncated to `4`, because losing precision on a rating
+     * misleads any consumer that renders it. An aggregate float belongs
+     * on {@see ReviewList::$averageRating}, not on an individual review.
+     *
+     * @since 1.0.0
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function ratingOrNull( array $data ): ?int
+    {
+        if ( ! isset( $data['rating'] ) ) {
+            return null;
+        }
+
+        $value = $data['rating'];
+
+        if ( is_int( $value ) ) {
+            return ( $value >= 1 && $value <= 5 ) ? $value : null;
+        }
+
+        if ( is_string( $value ) && '' !== $value && ctype_digit( $value ) ) {
+            $parsed = (int) $value;
+
+            return ( $parsed >= 1 && $parsed <= 5 ) ? $parsed : null;
+        }
+
+        return null;
     }
 
     /**

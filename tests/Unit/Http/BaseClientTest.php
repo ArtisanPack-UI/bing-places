@@ -224,6 +224,46 @@ test( 'does not retry ConnectionException on non-idempotent verbs (POST/PATCH/DE
     expect( $attempts )->toBe( 1 );
 } );
 
+test( 'does not retry 5xx responses on non-idempotent verbs (POST)', function (): void {
+    $factory = new HttpFactory();
+    $factory->fake( [ '*' => $factory::response( 'server oops', 503 ) ] );
+
+    $client = bingMakeClient( $factory, null, maxAttempts: 3 );
+
+    $thrown = null;
+
+    try {
+        $client->call( 'POST', 'businesses', [], [ 'name' => 'Shop' ] );
+    } catch ( ApiException $exception ) {
+        $thrown = $exception;
+    }
+
+    expect( $thrown )->not->toBeNull();
+    expect( $thrown->statusCode() )->toBe( 503 );
+    // POST is not replayed on 5xx because the server may have already
+    // processed the write; retrying would create a duplicate.
+    $factory->assertSentCount( 1 );
+} );
+
+test( 'does not retry 429 responses on non-idempotent verbs (POST)', function (): void {
+    $factory = new HttpFactory();
+    $factory->fake( [ '*' => $factory::response( 'slow down', 429 ) ] );
+
+    $client = bingMakeClient( $factory, null, maxAttempts: 3 );
+
+    $thrown = null;
+
+    try {
+        $client->call( 'POST', 'businesses', [], [ 'name' => 'Shop' ] );
+    } catch ( ApiException $exception ) {
+        $thrown = $exception;
+    }
+
+    expect( $thrown )->not->toBeNull();
+    expect( $thrown->statusCode() )->toBe( 429 );
+    $factory->assertSentCount( 1 );
+} );
+
 test( 'honors a numeric Retry-After header when retrying 429 responses', function (): void {
     $factory = new HttpFactory();
     $factory->fakeSequence( '*' )

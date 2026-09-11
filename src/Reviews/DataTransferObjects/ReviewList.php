@@ -86,8 +86,12 @@ final class ReviewList
 
         $nextPageToken = null;
 
-        if ( isset( $data['nextPageToken'] ) && '' !== $data['nextPageToken'] ) {
-            $nextPageToken = (string) $data['nextPageToken'];
+        if (
+            isset( $data['nextPageToken'] )
+            && is_string( $data['nextPageToken'] )
+            && '' !== $data['nextPageToken']
+        ) {
+            $nextPageToken = $data['nextPageToken'];
         }
 
         $totalSize = null;

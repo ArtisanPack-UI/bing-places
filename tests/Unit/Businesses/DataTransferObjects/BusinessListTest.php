@@ -58,6 +58,23 @@ test( 'nextPageToken is null when empty and hasMore is false on the final page',
     expect( $list->hasMore() )->toBeFalse();
 } );
 
+test( 'rejects non-string nextPageToken (array, int) as null without a PHP warning', function (): void {
+    $arrayToken = BusinessList::fromArray( [
+        'businesses'    => [],
+        'nextPageToken' => [ 'not', 'a', 'string' ],
+    ] );
+
+    $intToken = BusinessList::fromArray( [
+        'businesses'    => [],
+        'nextPageToken' => 42,
+    ] );
+
+    expect( $arrayToken->nextPageToken )->toBeNull();
+    expect( $arrayToken->hasMore() )->toBeFalse();
+    expect( $intToken->nextPageToken )->toBeNull();
+    expect( $intToken->hasMore() )->toBeFalse();
+} );
+
 test( 'coerces numeric-string totalSize into an int', function (): void {
     $list = BusinessList::fromArray( [
         'businesses' => [],

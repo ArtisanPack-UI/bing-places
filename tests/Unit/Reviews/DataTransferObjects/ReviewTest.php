@@ -27,10 +27,32 @@ test( 'hydrates typed scalar fields and preserves the raw payload', function ():
     expect( $review->raw )->toBe( $payload );
 } );
 
-test( 'coerces numeric-string rating into an int', function (): void {
+test( 'coerces integer-shaped numeric-string rating into an int', function (): void {
     $review = Review::fromArray( [ 'id' => 'rev-1', 'rating' => '4' ] );
 
     expect( $review->rating )->toBe( 4 );
+} );
+
+test( 'rejects out-of-range ratings (0 and 6) as null', function (): void {
+    $low  = Review::fromArray( [ 'id' => 'rev-1', 'rating' => 0 ] );
+    $high = Review::fromArray( [ 'id' => 'rev-1', 'rating' => 6 ] );
+
+    expect( $low->rating )->toBeNull();
+    expect( $high->rating )->toBeNull();
+} );
+
+test( 'rejects fractional ratings rather than silently truncating', function (): void {
+    $review       = Review::fromArray( [ 'id' => 'rev-1', 'rating' => 4.9 ] );
+    $stringReview = Review::fromArray( [ 'id' => 'rev-1', 'rating' => '4.9' ] );
+
+    expect( $review->rating )->toBeNull();
+    expect( $stringReview->rating )->toBeNull();
+} );
+
+test( 'rejects non-numeric rating values as null', function (): void {
+    $review = Review::fromArray( [ 'id' => 'rev-1', 'rating' => 'excellent' ] );
+
+    expect( $review->rating )->toBeNull();
 } );
 
 test( 'coerces missing rating and comment to null', function (): void {

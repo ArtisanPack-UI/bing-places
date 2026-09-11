@@ -49,6 +49,23 @@ test( 'skips malformed review rows', function (): void {
     expect( $list->reviews[0]->id )->toBe( 'rev-1' );
 } );
 
+test( 'rejects non-string nextPageToken (array, int) as null without a PHP warning', function (): void {
+    $arrayToken = ReviewList::fromArray( [
+        'reviews'       => [],
+        'nextPageToken' => [ 'not', 'a', 'string' ],
+    ] );
+
+    $intToken = ReviewList::fromArray( [
+        'reviews'       => [],
+        'nextPageToken' => 42,
+    ] );
+
+    expect( $arrayToken->nextPageToken )->toBeNull();
+    expect( $arrayToken->hasMore() )->toBeFalse();
+    expect( $intToken->nextPageToken )->toBeNull();
+    expect( $intToken->hasMore() )->toBeFalse();
+} );
+
 test( 'coerces numeric-string averageRating into a float', function (): void {
     $list = ReviewList::fromArray( [
         'reviews'       => [],
