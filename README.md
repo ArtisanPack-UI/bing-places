@@ -1,8 +1,8 @@
 # ArtisanPack UI Bing Places
 
-A Laravel package that provides a typed API client for the Bing Places for Business API. This is part of the ArtisanPack UI Local SEO stack and mirrors the shape of `artisanpack-ui/google-business-profile`.
+OAuth-free, UI-free API client for the Bing Places for Business management API. Part of the ArtisanPack UI Local SEO stack; mirrors the shape of `artisanpack-ui/google-business-profile` (typed client, DTOs, `TokenProvider` contract, shared `Http` factory for `Http::fake()`) and consumes the `TokenProvider` published by `artisanpack-ui/microsoft-oauth`.
 
-> **Note:** The Bing Places management API is restricted (Microsoft agency / partner program). Until access is granted, this package ships the contract, DTOs, and `Http::fake()`-friendly fixtures — no live API calls.
+> **Access to the Bing Places management API is restricted.** Microsoft grants it through its agency / partner program, not through self-service signup. Until access is granted for a given Bing Places account, live API calls will fail. This package is designed to be developed and released against `Http::fake()` fixtures so the code path is ready the day access lands. See the [restricted-access reality](docs/guide/restricted-access.md) for what is and is not gated.
 
 ## Installation
 
@@ -10,12 +10,41 @@ A Laravel package that provides a typed API client for the Bing Places for Busin
 composer require artisanpack-ui/bing-places
 ```
 
+The service provider and the `BingPlaces` facade alias are auto-registered via Laravel's package discovery.
+
 ## Requirements
 
 - PHP 8.2+
 - Laravel 10, 11, 12, or 13
 - `artisanpack-ui/core`
-- `artisanpack-ui/microsoft-oauth` — will be added as a runtime dependency once the API client work lands; it provides the `TokenProvider` consumed by this package
+- `artisanpack-ui/microsoft-oauth` — supplies the `TokenProvider` this package consumes. Added as a runtime dependency once the API client work lands; until then, host applications can bind any implementation of the contract themselves.
+
+## `TokenProvider` contract
+
+Every client this package ships accepts a `TokenProvider` in its constructor and calls `accessTokenFor( $userId )` on it before each outgoing request. No OAuth logic lives in this package — the host application binds whichever implementation fits.
+
+```php
+use ArtisanPackUI\MicrosoftOAuth\Contracts\TokenProvider;
+
+$this->app->bind( TokenProvider::class, function () {
+    // In Keystone CMS this resolves to the MicrosoftOAuth-backed provider,
+    // which handles refresh and per-user connection lookup transparently.
+    return new MyTokenProvider();
+} );
+```
+
+See the [Token provider guide](docs/guide/token-provider.md) for stub, cached, and MicrosoftOAuth-backed examples.
+
+## Sync from Google Business Profile
+
+The Bing Places management API is restricted, but Bing Places itself offers a first-party **"Sync from Google Business Profile"** import that most listings should use. When a business is already published to Google Business Profile, running the sync in the Bing Places UI is the recommended path — Bing pulls location data, hours, categories, and photos directly from Google, no management-API access required.
+
+This package still ships the management-API client so that:
+
+- Ongoing updates (post-sync edits, review replies, media uploads) can be pushed programmatically once API access is granted.
+- Hosts that cannot rely on GBP as the source of truth (chains that publish to Bing independently, businesses without an active GBP profile) have a code path ready.
+
+For most Keystone CMS deployments the recommendation is: **sync from GBP first, then use this package for the incremental writes management-API access unlocks.** See the [GBP-sync path guide](docs/guide/gbp-sync.md) for the workflow.
 
 ## Usage
 
@@ -24,55 +53,19 @@ Full usage docs will land as feature code is added. The container binding and he
 ```php
 use ArtisanPackUI\BingPlaces\Facades\BingPlaces;
 
-BingPlaces::…; // static facade
-bingPlaces();  // helper
+BingPlaces::…;        // static facade
+bingPlaces();         // helper
 app( 'bing-places' ); // container binding
 ```
 
-### TokenProvider contract
+## Documentation
 
-This package performs no OAuth. The API client (once introduced) accepts an
-implementation of `ArtisanPackUI\BingPlaces\Contracts\TokenProvider`, which
-returns a valid Microsoft OAuth access token to use as the Bearer credential on
-Bing Places for Business API requests:
+Full documentation lives in the [`docs/`](docs/home.md) directory:
 
-```php
-namespace ArtisanPackUI\BingPlaces\Contracts;
-
-interface TokenProvider
-{
-    public function accessToken(): string;
-}
-```
-
-Implementations are responsible for refreshing expired tokens before returning;
-the client will use the returned string verbatim.
-
-**Intended binding.** Host applications bind the contract to whichever service
-supplies Microsoft OAuth access tokens. In Keystone (and any other consumer of
-[`artisanpack-ui/microsoft-oauth`](https://github.com/ArtisanPack-UI/microsoft-oauth)),
-this will be the manager exposed by that package once its public surface is
-finalized. Until then, host applications bind the contract to any
-implementation they control — for example an inline adapter in an application
-service provider:
-
-```php
-use ArtisanPackUI\BingPlaces\Contracts\TokenProvider;
-
-$this->app->bind( TokenProvider::class, function (): TokenProvider {
-    return new class implements TokenProvider {
-        public function accessToken(): string
-        {
-            // Resolve a valid Microsoft OAuth access token here — refresh
-            // beforehand if needed. The client uses the returned string
-            // verbatim as the Bearer credential.
-            return '...';
-        }
-    };
-} );
-```
-
-Tests may bind a stub returning a fixed string.
+- [Home](docs/home.md) — package overview and what's inside.
+- [Getting started](docs/getting-started.md) — install, bind a `TokenProvider`, and understand the restricted-access implication before your first call.
+- [Guide](docs/guide.md) — the `TokenProvider` contract, the restricted-access reality, the GBP-sync path, and testing with `Http::fake()`.
+- [Reference](docs/reference.md) — API surface map (populated as client work lands).
 
 ## Contributing
 
