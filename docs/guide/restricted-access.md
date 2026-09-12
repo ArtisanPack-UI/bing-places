@@ -14,11 +14,16 @@ access is pending.
 ## What is gated
 
 - **All live management-API calls.** Every write (create / update /
-  delete a location, reply to a review, publish media) and every read
+  delete a business, reply to a review, publish media) and every read
   through the management API requires a Bing Places account whose
   management-API access has been approved by Microsoft. Without
-  approval, requests come back with `401` or `403`, which the client
-  surfaces as `ApiException`.
+  approval, Bing Places returns `403` — the Trusted-Partner check
+  Microsoft documents for missing credentials, a missing client
+  certificate, or an account not enrolled in the partner program. The
+  client surfaces every non-2xx response (including that `403`) as
+  `ApiException`. `401` is a separate case that means the OAuth token
+  itself was rejected — see [Common failure modes](#common-failure-modes)
+  below.
 - **Bulk / programmatic edits at any real volume.** The whole reason to
   use this package rather than the Bing Places UI is scripted, repeated
   updates. That capability is gated behind access approval.
@@ -29,8 +34,8 @@ access is pending.
   the process, so approval is irrelevant. The whole test suite for this
   package runs unapproved. See the [testing guide](testing.md).
 - **Minting Microsoft OAuth access tokens.** Tokens can be issued
-  before Bing Places access is approved; the `401` / `403` comes back
-  from the Bing Places API surface, not from the OAuth flow.
+  before Bing Places access is approved; the `403` comes back from the
+  Bing Places API surface itself, not from the OAuth flow.
 - **The Bing Places UI itself.** Anyone can create and manage listings
   through Microsoft's Bing Places web UI without management-API access.
   That's the path the [GBP-sync guide](gbp-sync.md) covers.
@@ -38,6 +43,24 @@ access is pending.
   **"Sync from Google Business Profile"** import runs in the Bing Places
   UI and does not require management-API access. For most listings
   that's the recommended way to get on Bing.
+
+## Common failure modes
+
+- **`403 Bing Places authorization failed`** — the Trusted-Partner check
+  refused the request. Bing Places documents `403` for missing
+  credentials, a missing client certificate, or an account that is not
+  enrolled in the partner program. It also fires when the OAuth token
+  is valid but lacks the scope the API requires. Both are the same
+  status code with different underlying causes; the client cannot
+  distinguish them and neither can the token flow. Treat a persistent
+  `403` as the signal that partner access (or the required scope) is
+  not yet in place, and confirm through Microsoft's partner support
+  channel rather than iterating on the client.
+- **`401 Bing Places authentication failed`** — Microsoft rejected the
+  OAuth token itself: expired, revoked, malformed, or issued for a
+  different tenant. Refresh the token via the provider and retry once;
+  a repeat `401` means the underlying credential is bad, not that
+  partner access is missing.
 
 ## Requesting access
 
@@ -60,7 +83,7 @@ Access is per Bing Places account (and, in some approval flows, per
 requesting organisation). If accounts are added later, or the
 requesting organisation changes, the access may need to be re-requested.
 
-[bpb]: https://www.bingplaces.com/
+[bpb]: https://www.bing.com/forbusiness
 
 ## Keeping development unblocked
 

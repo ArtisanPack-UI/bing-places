@@ -4,52 +4,80 @@ title: API Surface Map
 
 # API Surface Map
 
-The Bing Places for Business management API is a single-host surface
-(unlike Google Business Profile, which splits its API across four
-hosts). This page will list every method the resource clients expose,
-alongside the DTO each method returns, once the client work lands on
-the `release/1.0` branch.
+Unlike Google Business Profile — which splits its API across four
+hosts — the Bing Places for Business management API is a single-host
+surface. This page lists every method the resource clients expose,
+alongside the DTO each method returns.
 
 ## Base URL
 
-The production host for the Bing Places for Business management API is:
+Both resource clients today build requests against:
 
 ```
-https://ssl.bingplacespartner.microsoft.com/
+https://bingplaces.microsoft.com/api/v2
 ```
 
-The client encapsulates the full path segment for each resource;
-callers only interact with the typed methods.
+This is the contract-first base URL every client returns from its
+`baseUrl()` method. When Microsoft grants a different production host
+to the partner program, changing `baseUrl()` on each client is
+sufficient — the DTO layer and consumer-facing method shapes stay put.
 
-## Clients
+## 1. Businesses
 
-Client and DTO tables are populated as feature issues land. Placeholder
-shape, matching the reference map in
-`artisanpack-ui/google-business-profile`:
+- **Client**: `ArtisanPackUI\BingPlaces\Businesses\BusinessesClient`
+- **DTO namespace**: `ArtisanPackUI\BingPlaces\Businesses\DataTransferObjects`
 
-| Client                                     | Purpose                                                                                                                                      |
-|--------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| `ArtisanPackUI\BingPlaces\Client\…Client`  | (Populated as client families land — businesses, reviews, media, and their DTOs will appear here alongside the methods each client exposes.) |
+| Method                                                           | Returns          | Purpose                                                                                                                                                        |
+|------------------------------------------------------------------|------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `listBusinesses( ?int $pageSize, ?string $pageToken, ?string $filter )` | `BusinessList` | Fetch one page of businesses. `pageSize` is bounded by `BusinessesClient::MAX_PAGE_SIZE`; `nextPageToken` on the result is non-null while more pages exist.    |
+| `getBusiness( string $id )`                                      | `Business`       | Fetch a single business by Bing-assigned id.                                                                                                                    |
+| `createBusiness( array $business )`                              | `Business`       | Create a new business listing; the API assigns an `id` and echoes the full record back.                                                                        |
+| `patchBusiness( string $id, array $business, bool $validateOnly = false )` | `?Business` | Update the writable fields of a single business. When `validateOnly` is true the API validates without persisting and this method returns `null` on empty body. |
+| `deleteBusiness( string $id )`                                   | `void`           | Delete a business listing. Responds with `204 No Content` on success.                                                                                          |
 
-Until then, treat the [Getting Started page](../getting-started.md) as
-the source of truth for the wiring, the
-[TokenProvider contract](../guide/token-provider.md) as the
-authentication contract, and the
-[Testing guide](../guide/testing.md) as the recipe for exercising the
-client against fakes.
+DTOs: `Business` (id, storeId, businessName, website, phone,
+description, address, location, categories, businessHours, specialHours,
+verification, photos, createdAt, updatedAt, raw) and `BusinessList`
+(`businesses`, `nextPageToken`, `totalSize`, `hasMore()`).
+
+## 2. Reviews
+
+- **Client**: `ArtisanPackUI\BingPlaces\Reviews\ReviewsClient`
+- **DTO namespace**: `ArtisanPackUI\BingPlaces\Reviews\DataTransferObjects`
+
+| Method                                                                       | Returns      | Purpose                                                                                                                                                                             |
+|------------------------------------------------------------------------------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `listReviews( string $businessId, ?int $pageSize, ?string $pageToken )`     | `ReviewList` | Fetch one page of reviews for a business. `pageSize` is bounded by `ReviewsClient::MAX_PAGE_SIZE`; `nextPageToken` on the result is non-null while more pages exist. |
+
+DTOs: `Review` (id, rating, comment, source, reviewer, createdAt,
+updatedAt, raw) and `ReviewList` (`reviews`, `nextPageToken`,
+`totalSize`, `averageRating`, `hasMore()`).
+
+Review-reply and other write endpoints will land in follow-up feature
+issues on the `release/1.0` branch.
 
 ## Shared behaviour
 
-Every method the clients expose will:
+Every method above:
 
-- Delegate authentication to the injected `TokenProvider` (see the
-  [Token provider contract](../guide/token-provider.md)).
-- Retry `HTTP 429`, `HTTP 5xx`, and `ConnectionException` — up to three
-  total attempts by default (two retries after the initial request),
-  with a 250ms sleep between attempts.
-- Map every non-2xx response and every terminal `ConnectionException`
-  to `ArtisanPackUI\BingPlaces\Exceptions\ApiException`.
-- Decode the JSON response into a typed DTO under the client's
+- Delegates authentication to the injected `TokenProvider` (see the
+  [Token provider contract](../guide/token-provider.md)), which is
+  called on every request.
+- Retries `HTTP 429`, `HTTP 5xx`, and `ConnectionException` — **but
+  only for idempotent verbs** (`GET`, `HEAD`, `OPTIONS`). Writes
+  (`POST`, `PATCH`, `PUT`, `DELETE`) are surfaced immediately, since
+  replaying them could duplicate work the server may already have
+  processed. Up to three total attempts by default (two retries after
+  the initial request), with a 250ms sleep between attempts. A valid
+  positive `Retry-After` header (delta-seconds or HTTP date) overrides
+  that sleep for the corresponding attempt.
+- Maps every non-2xx response and every terminal `ConnectionException`
+  to `ArtisanPackUI\BingPlaces\Exceptions\ApiException`. `403` covers
+  both a missing OAuth scope and a Bing Places account that is not
+  enrolled in the Trusted Partner / agency program; `401` covers
+  rejected tokens. See the
+  [restricted-access guide](../guide/restricted-access.md).
+- Decodes the JSON response into a typed DTO under the family's
   `DataTransferObjects/` namespace.
 
 See [Testing with `Http::fake()`](../guide/testing.md) for how to

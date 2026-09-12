@@ -4,13 +4,10 @@ title: Testing with Http::fake()
 
 # Testing with `Http::fake()`
 
-The client this package ships (landing in follow-up feature issues on
-the `release/1.0` branch) is built on the same pattern as
-`artisanpack-ui/google-business-profile`: a shared `BaseClient` accepts
-an `Illuminate\Http\Client\Factory` instance in its constructor, and
-the service provider wires it to the same singleton the `Http` facade
-resolves. That means `Http::fake()` works against every client with no
-bespoke test doubles.
+The shared `BaseClient` accepts an `Illuminate\Http\Client\Factory`
+instance in its constructor. The service provider wires it to the same
+singleton the `Http` facade resolves, so `Http::fake()` works against
+every client with no bespoke test doubles.
 
 While management-API access is still pending (see the
 [restricted-access guide](restricted-access.md)), this is the primary
@@ -19,55 +16,86 @@ way the whole package is exercised end-to-end.
 ## Faking a Bing Places request
 
 Match on the Bing Places management-API host and return whatever
-payload the client DTOs expect. The exact URL prefix will be added to
-the reference map as client work lands; the shape below shows the
-pattern:
+payload the client DTOs expect. Both `BusinessesClient` and
+`ReviewsClient` currently point at `https://bingplaces.microsoft.com/api/v2`
+— when Microsoft grants a different production host to the partner
+program, changing each client's `baseUrl()` (and these fake matchers)
+is the only update required.
 
 ```php
+use ArtisanPackUI\BingPlaces\Businesses\BusinessesClient;
 use Illuminate\Support\Facades\Http;
 
 Http::fake( [
-    'ssl.bingplacespartner.microsoft.com/*' => Http::response( [
+    'bingplaces.microsoft.com/*' => Http::response( [
         'businesses' => [
             [
-                'id'   => '123',
-                'name' => 'Test Business',
+                'id'           => '123',
+                'storeId'      => 'store-1',
+                'businessName' => 'Test Business',
             ],
         ],
     ] ),
 ] );
 
-// … resolve the client and call it as normal; the fake intercepts.
+$page = app( BusinessesClient::class )->listBusinesses();
+
+expect( $page->businesses )->toHaveCount( 1 );
+expect( $page->businesses[0]->id )->toBe( '123' );
 ```
 
 ## Testing retry behaviour
 
-Following the shape of the sister GBP client, `BaseClient` retries
-transport failures (`ConnectionException`), `HTTP 429`, and `HTTP 5xx`
-responses up to its configured attempt count (default 3). `Http::fake()`
-accepts a response sequence, which is enough to exercise the retry
-loop end-to-end:
+`BaseClient` retries `HTTP 429`, `HTTP 5xx`, and `ConnectionException`
+— but **only for idempotent verbs** (`GET`, `HEAD`, `OPTIONS`). A
+`POST`, `PATCH`, `PUT`, or `DELETE` that fails or times out is
+surfaced immediately, because replaying it could duplicate a write the
+server may already have processed. Up to `maxAttempts` total attempts
+(default 3), with `retrySleepMs` milliseconds between them (default
+250). A valid positive `Retry-After` header (delta-seconds or HTTP
+date) overrides the configured sleep for that one attempt; an
+absent, unparseable, or non-positive value falls back to
+`retrySleepMs`.
+
+`Http::fake()` accepts a response sequence, which is enough to
+exercise the retry loop end-to-end on an idempotent method:
 
 ```php
 Http::fake( [
-    'ssl.bingplacespartner.microsoft.com/*' => Http::sequence()
+    'bingplaces.microsoft.com/*' => Http::sequence()
         ->push( [ 'error' => 'temporary' ], 503 )
         ->push( [ 'error' => 'temporary' ], 503 )
         ->push( [ 'businesses' => [] ],    200 ),
 ] );
 
-// The two 503s are retried transparently; the caller sees the 200.
+// GET is idempotent, so the two 503s are retried transparently
+// and the caller sees the 200.
+$page = app( BusinessesClient::class )->listBusinesses();
+
+expect( $page->businesses )->toBeEmpty();
 ```
 
-Retryable statuses are `429` and any `5xx`. `4xx` responses are
-surfaced immediately — retrying them would not change the outcome.
+To exercise the "do not retry writes" branch, sequence the same
+statuses under a `POST`-driven call (`createBusiness`, for example) and
+assert the first non-2xx surfaces as `ApiException` immediately —
+without pulling a further response from the sequence.
 
 ## Speeding up retry sleeps
 
 `BaseClient` sleeps `retrySleepMs` milliseconds between attempts
 (default `250`). In tests you can construct a client with
 `retrySleepMs: 0` to skip the sleep entirely, or rebind the service in
-your `TestCase` and pass `retrySleepMs: 0` when constructing the client.
+your `TestCase`:
+
+```php
+$this->app->bind( BusinessesClient::class, function ( $app ) {
+    return new BusinessesClient(
+        tokenProvider: $app->make( TokenProvider::class ),
+        http:          $app->make( \Illuminate\Http\Client\Factory::class ),
+        retrySleepMs:  0,
+    );
+} );
+```
 
 ## Asserting the request that went out
 
@@ -79,28 +107,31 @@ Http::assertSent( function ( $request ) {
     return $request->hasHeader( 'Authorization', 'Bearer test-token' )
         && str_starts_with(
             $request->url(),
-            'https://ssl.bingplacespartner.microsoft.com/',
+            'https://bingplaces.microsoft.com/api/v2/',
         );
 } );
 ```
 
 ## Testing error mapping
 
-Any non-2xx response — after retries are exhausted — is mapped to
+Any non-2xx response — after retries are exhausted, on idempotent
+verbs, or immediately on non-idempotent verbs — is mapped to
 `ApiException::fromResponse()`. A `ConnectionException` on the final
-attempt is mapped to `ApiException::transportFailure()`.
+attempt (or the first attempt for a non-idempotent verb) is mapped to
+`ApiException::transportFailure()`.
 
 ```php
 use ArtisanPackUI\BingPlaces\Exceptions\ApiException;
 
 Http::fake( [
-    'ssl.bingplacespartner.microsoft.com/*' => Http::response(
+    'bingplaces.microsoft.com/*' => Http::response(
         [ 'error' => [ 'code' => 403, 'message' => 'Not enrolled' ] ],
         403,
     ),
 ] );
 
-// … resolving and calling the client throws ApiException.
+expect( fn () => app( BusinessesClient::class )->listBusinesses() )
+    ->toThrow( ApiException::class );
 ```
 
 The two factories carry different information:
@@ -113,10 +144,14 @@ The two factories carry different information:
   transport exception is chained as `->getPrevious()`, so tests assert
   the previous exception instead of a body.
 
-`403` in particular is the signature signal that management-API access
-has not been granted for the Bing Places account (see the
-[restricted-access guide](restricted-access.md)); it is a legitimate
-`ApiException`, not a client bug.
+`403` in particular is the signature signal that either the token
+lacks the required OAuth scope **or** the Bing Places account is not
+enrolled in the Trusted Partner / agency program. The exception's
+message covers both causes; the status code alone does not identify
+which one applies. See the
+[restricted-access guide](restricted-access.md) for the full
+breakdown. Rejected-token failures — expired, revoked, malformed, or
+issued for a different tenant — surface as `401` instead.
 
 ## Stubbing the `TokenProvider`
 

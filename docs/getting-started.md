@@ -27,27 +27,29 @@ management API you need:
    management-API access by Microsoft**. Access is gated behind
    Microsoft's agency / partner program and is not self-service.
    Development against `Http::fake()` does not require access; production
-   traffic does. See [restricted-access reality](guide/restricted-access.md)
+   traffic does. See the [restricted-access reality](guide/restricted-access.md)
    for the full breakdown.
 2. A Microsoft OAuth access token issued for the scope the Bing Places
-   API requires. The token is minted by
+   API requires. The token can be minted by
    [`artisanpack-ui/microsoft-oauth`](https://github.com/ArtisanPack-UI/microsoft-oauth)
-   or any implementation of its `TokenProvider` contract.
-3. A `TokenProvider` binding in the host application's service container
-   — see the next section.
+   or by any other source the host wires up.
+3. A binding for `ArtisanPackUI\BingPlaces\Contracts\TokenProvider` in
+   the host application's service container — see the next section.
 
 ## Bind a `TokenProvider`
 
-Every client accepts a `TokenProvider` and calls `accessTokenFor( $userId )`
-on it before each request. Bind whichever implementation fits your host:
+Every client accepts an `ArtisanPackUI\BingPlaces\Contracts\TokenProvider`
+and calls `accessToken()` on it before each request. Bind whichever
+implementation fits your host:
 
 ```php
-use ArtisanPackUI\MicrosoftOAuth\Contracts\TokenProvider;
+use ArtisanPackUI\BingPlaces\Contracts\TokenProvider;
 
 $this->app->bind( TokenProvider::class, function () {
-    // In Keystone CMS, this resolves to the MicrosoftOAuth-backed
-    // provider, which handles per-user connection lookup and refresh.
-    // Anywhere else, wire up whatever exposes a fresh access token.
+    // In Keystone CMS this resolves to an adapter that delegates to the
+    // manager exposed by artisanpack-ui/microsoft-oauth, which handles
+    // refresh and connection lookup. Anywhere else, wire up whatever
+    // exposes a fresh access token.
     return new MyTokenProvider();
 } );
 ```
@@ -65,10 +67,13 @@ path. The practical implications:
 - **Local development is unblocked.** Write and test all client code
   against `Http::fake()` — the [testing guide](guide/testing.md) covers
   how the shared `Http` factory makes fakes trivial.
-- **Live requests will `401` / `403` without access.** The client
-  surfaces those as `ApiException`. Treat the exception as the signal
-  that access is not yet granted (or has been revoked), not as a bug in
-  the client.
+- **Live requests will `403` without partner access.** Bing Places
+  documents `403` for missing credentials, a missing client certificate,
+  or an account that is not enrolled as a Trusted Partner. The client
+  surfaces those as `ApiException`. Treat that exception as the signal
+  that partner access is not yet granted (or has been revoked), not as a
+  bug in the client. Rejected-token authentication failures are surfaced
+  as `401` instead.
 - **For most listings, prefer Bing's GBP sync.** Bing Places offers a
   first-party import from Google Business Profile that does not need
   management-API access. See the [GBP-sync path guide](guide/gbp-sync.md)
@@ -76,21 +81,27 @@ path. The practical implications:
 
 ## Make your first call
 
-The client and DTOs land in follow-up feature issues on the
-`release/1.0` branch. Once they are in place, resolving a client from
-the container will look like:
+The package ships two resource clients:
+`ArtisanPackUI\BingPlaces\Businesses\BusinessesClient` and
+`ArtisanPackUI\BingPlaces\Reviews\ReviewsClient`. Resolve either from
+the container; the `TokenProvider` and the shared `Http` factory are
+wired in automatically:
 
 ```php
-use ArtisanPackUI\BingPlaces\Client\BingPlacesClient;
+use ArtisanPackUI\BingPlaces\Businesses\BusinessesClient;
 
-$client = app( BingPlacesClient::class );
-// … call typed methods; each returns a typed DTO.
+$client = app( BusinessesClient::class );
+$page   = $client->listBusinesses();
+
+foreach ( $page->businesses as $business ) {
+    logger()->info( $business->id . ': ' . $business->businessName );
+}
 ```
 
-Until then, the [`bingPlaces()` helper](../README.md#usage), the
-`BingPlaces` facade, and the `bing-places` container binding are the
-extension points, and the [reference map](reference.md) is updated as
-each client family lands.
+Every response is decoded into a typed DTO — `Business`, `BusinessList`,
+`Review`, `ReviewList` — under each family's `DataTransferObjects/`
+namespace. See the [API surface map](reference/api-families.md) for the
+full list of methods and DTOs.
 
 ## Next steps
 

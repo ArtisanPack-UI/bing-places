@@ -14,8 +14,12 @@ For most listings this is the recommended way to get onto Bing. This
 package still ships the management-API client for the incremental
 writes access approval unlocks (see the
 [restricted-access guide](restricted-access.md)), but for the first-time
-publication the sync path is faster, self-service, and always
-available.
+publication the sync path is faster and self-service whenever an
+eligible GBP listing already exists — see
+[When to use the sync path](#when-to-use-the-sync-path) for the
+eligibility rule and
+[When to reach for the management API instead](#when-to-reach-for-the-management-api-instead)
+for the cases it does not cover.
 
 ## When to use the sync path
 

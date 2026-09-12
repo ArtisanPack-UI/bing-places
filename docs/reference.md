@@ -10,9 +10,9 @@ surface this package wraps.
 ## Topics
 
 - [API surface map](reference/api-families.md) — the Bing Places
-  management-API host, the client class(es) that wrap it, base URL, and
-  the methods exposed. Populated as client work lands on the
-  `release/1.0` branch.
+  management-API base URL, the two resource clients this package
+  ships (`BusinessesClient`, `ReviewsClient`), the methods each
+  exposes, and the DTOs each method returns.
 
 See also: [Token provider contract](guide/token-provider.md) for the
 contract every client depends on and
